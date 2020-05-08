@@ -11,6 +11,35 @@ int N, M;
 vector<string> grid(102);
 string movement;
 
+class Monster{
+public:
+    string name;
+    int att, def, health, exp;
+    bool Boss = false;
+    Monster(string &_name, int _att, int _def, int _health, int _exp, bool _boss){
+        name = _name;
+        att = _att;
+        def = _def;
+        health = _health;
+        exp = _exp;
+        Boss = _boss;
+    }
+};
+
+class Player{
+public:
+    int health;
+    int att;
+    int def;
+    int exp;
+    int level;
+    int weapon;
+    int armor;
+    vector<pii> jewel;
+
+    
+};
+
 int main(){
 #ifdef _DEBUG
     freopen("input.txt", "r", stdin);
@@ -32,14 +61,19 @@ int main(){
     }
     cin >> movement;
     
+    // monster
     for(int i = 0; i < K; i++){
         int R, C, W, A, H, E;
         // r,c /  attack, armor, health, exp
         // S = name;
         string S;
         cin >> R >> C >> S >> W >> A >> H >> E;
+
+        R--; C--;
+        
     }
 
+    // item
     for(int i = 0; i < L; i++){
         int R, C;
         char T;
@@ -51,5 +85,11 @@ int main(){
             string S; cin >> S;
         }
     }
+
+
+    //
+
+    Player player;
+
     return 0;
 }
