@@ -2,30 +2,24 @@ const fs = require('fs');
 const io = {
   buffer: '',
   input() {
-    return `7 8
-.&....&.
-..B.&..&
-B...&...
-.B@.B#..
-.&....M.
-.B...B..
-..B^^&..
-RRRUULLULUDDDLDRDRDRRRURRULUULLU
-3 5 One 4 2 10 3
-2 5 Two 10 2 8 3
-1 2 Three 20 2 14 7
-5 2 Four 16 2 16 5
-7 6 Five 16 5 16 12
-5 7 Boss 2 9 20 2
-1 7 EO 20 1 1 4
-2 8 ET 10 5 4 10
-4 5 W 4
-2 3 O CO
-3 1 A 10
-4 2 A 2
-6 2 O DX
-7 3 O HU
-6 6 W 3`.trim().split('\n');
+return `4 5
+&&&B#
+...&.
+&#&B.
+@BBM&
+RDDDULUDLRRRRUULRDDL
+1 1 CBdyeX 4 3 5 10
+1 2 jGZOLx 3 1 6 7
+1 3 FOeeDv 5 1 2 10
+2 4 PbTbcv 3 2 3 8
+3 1 MFoVDB 6 1 4 6
+3 3 lxTGpq 6 3 5 7
+4 4 GYddRJ 6 3 3 10
+4 5 KJlYKE 3 3 3 8
+1 4 A 4
+3 4 W 2
+4 2 W 5
+4 3 O HR`.trim().split('\n');
     //return fs.readFileSync('/dev/stdin').toString().trim().split('\n');
   },
   insert(s) {
@@ -114,9 +108,13 @@ class Hero {
   }
   addExp(exp) {
     this.exp = this.exp + exp;
-    while (this.exp >= this.maxExp()) {
-      this.exp -= this.maxExp();
+    if (this.exp >= this.maxExp()) {
+      this.exp = 0
       this.level = this.level + 1;
+      this.maxHp = this.maxHp + 5;
+      this.baseAtt = this.baseAtt + 2;
+      this.baseDef = this.baseDef + 2;
+      this.hp = this.maxHp;
     }
   }
   addHp(hp) {
@@ -209,9 +207,10 @@ class Monster {
     this.att = att;
     this.def = def;
     this.hp = hp;
+    this.maxHp = hp;
     this.exp = exp;
   }
-  subHp() {
+  subHp(hp) {
     let tHp = this.hp - hp;
     if (tHp <= 0) {
       this.hp = 0;
@@ -228,9 +227,31 @@ GAME
 let mapsize = { weight: 0, height: 0 };
 let mapOverview = [[], ];
 let turn = 0;
+let movements = '';
+let isOver = false;
+let overMessage = 'Press any key to continue.';
 let hero = new GameObject(0, 0, new Hero(), OBJECT_TYPE.HERO);
+let entryPosition = { x: 0, y: 0 };
 let itemboxs = [];
 let monsters = [];
+
+function findItembox(x, y) {
+  for (let i = 0; i < itemboxs.length; ++i) {
+    if (itemboxs[i].x === x && itemboxs[i].y === y) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function findMonster(x, y) {
+  for (let i = 0; i < monsters.length; ++i) {
+    if (monsters[i].x === x && monsters[i].y === y) {
+      return i;
+    }
+  }
+  return -1;
+}
 
 function initMap() {
   let ioInput = io.input();
@@ -246,9 +267,10 @@ function initMap() {
           mapOverview[i].push(OBJECT_TYPE.EMPTY);
           break;
         case MAP_SIMBOL.HERO:
-          mapOverview[i].push(OBJECT_TYPE.HERO);
+          mapOverview[i].push(OBJECT_TYPE.EMPTY);
           hero.x = j + 1;
           hero.y = i;
+          entryPosition = { x: hero.x, y: hero.y };
           break;
         case MAP_SIMBOL.WALL:
           mapOverview[i].push(OBJECT_TYPE.WALL);
@@ -268,7 +290,7 @@ function initMap() {
       }
     }
   }
-  // TODO: 주인공 이동 경로 (mapsize.height + 1)
+  movements = ioInput[mapsize.height + 1];
   for (let i = mapsize.height + 2; i < ioInput.length; ++i) {
     let splited = ioInput[i].split(' ');
     let y = parseInt(splited[0]);
@@ -293,7 +315,7 @@ function initMap() {
         break;
       case OBJECT_TYPE.MONSTER:
         monsters.push(new GameObject(x, y, new Monster(
-          MONSTER_TYPE.BOSS, splited[2], parseInt(splited[3]), parseInt(splited[4]), parseInt(splited[5]), parseInt(splited[6])
+          MONSTER_TYPE.NORMAL, splited[2], parseInt(splited[3]), parseInt(splited[4]), parseInt(splited[5]), parseInt(splited[6])
         ), OBJECT_TYPE.MONSTER));
         break;
       case OBJECT_TYPE.BOSS:
@@ -305,3 +327,197 @@ function initMap() {
     }
   }
 }
+
+function dieHero(monster = null) {
+  if (hero.content.isEquipedAcc(ACC_TYPE.RE)) {
+    hero.content.unequipAcc(ACC_TYPE.RE);
+    hero.content.hp = hero.content.maxHp;
+    hero.x = entryPosition.x;
+    hero.y = entryPosition.y;
+    if (monster !== null) {
+      monster.content.hp = monster.content.maxHp;
+    }
+    return false;
+  } else {
+    hero.x = -1;
+    hero.y = -1;
+    return true;
+  }
+}
+
+function dieMonster(monster) {
+  let index = findMonster(monster.x, monster.y);
+  let exp = monster.content.exp;
+  if (hero.content.isEquipedAcc(ACC_TYPE.EX)) {
+    exp = Math.floor(exp * 1.2);
+  }
+  hero.content.addExp(exp);
+  mapOverview[monster.y][monster.x] = OBJECT_TYPE.EMPTY;
+  monsters = [...monsters.slice(0, index), ...monsters.slice(index + 1)];
+}
+
+function inTrap() {
+  let sub = 5;
+  if (hero.content.isEquipedAcc(ACC_TYPE.DX)) {
+    sub = 1;
+  }
+  if (hero.content.subHp(sub) === HERO_STATE.DEAD) {
+    if (dieHero()) {
+      overMessage = 'YOU HAVE BEEN KILLED BY SPIKE TRAP..';
+      isOver = true;
+    }
+  }
+}
+
+function openItembox(index) {
+  let itembox = itemboxs[index];
+  switch (itembox.content.type) {
+    case ITEM_TYPE.WEAPON:
+      hero.content.equipWeapon(itembox.content.item);
+      break;
+    case ITEM_TYPE.ARMOR:
+      hero.content.equipArmor(itembox.content.item);
+      break;
+    case ITEM_TYPE.ACC:
+      hero.content.equipAcc(itembox.content.item);
+      break;
+  }
+  mapOverview[itembox.y][itembox.x] = OBJECT_TYPE.EMPTY;
+  itemboxs = [...itemboxs.slice(0, index), ...itemboxs.slice(index + 1)];
+}
+
+function battle(index) {
+  let monster = monsters[index];
+  let count = 0;
+  if (monster.content.type === MONSTER_TYPE.BOSS && hero.content.isEquipedAcc(ACC_TYPE.HU)) {
+    hero.content.hp = hero.content.maxHp;
+  }
+  while (true) {
+    ++count;
+    let monsterDamage = hero.content.getAtt();
+    if (count === 1 && hero.content.isEquipedAcc(ACC_TYPE.CO)) {
+      monsterDamage = monsterDamage * 2;
+      if (hero.content.isEquipedAcc(ACC_TYPE.DX)) {
+        monsterDamage = monsterDamage * 1.5;
+      }
+    }
+    monsterDamage = monsterDamage - monster.content.def;
+    if (monsterDamage < 1) {
+      monsterDamage = 1;
+    }
+    if (monster.content.subHp(monsterDamage) === HERO_STATE.DEAD) {
+      if (monster.content.type === MONSTER_TYPE.BOSS) {
+        overMessage = 'YOU WIN!';
+        isOver = true;
+      }
+      dieMonster(monster);
+      if (hero.content.isEquipedAcc(ACC_TYPE.HR)) {
+        hero.content.addHp(3);
+      }
+      break;
+    }
+    if (count === 1 && hero.content.isEquipedAcc(ACC_TYPE.HU)) {
+      continue;
+    }
+    let heroDamage = monster.content.att - hero.content.getDef();
+    if (heroDamage < 1) {
+      heroDamage = 1;
+    }
+    if (hero.content.subHp(heroDamage) === HERO_STATE.DEAD) {
+      if (dieHero()) {
+        overMessage = `YOU HAVE BEEN KILLED BY ${monster.content.name}..`;
+        isOver = true;
+      }
+      break;
+    }
+  }
+}
+
+function interpret() {
+  for (let i = 0; i < movements.length; ++i) {
+    ++turn;
+    let from = { x: hero.x, y: hero.y };
+    let move = movements[i];
+    switch (move) {
+      case 'U': 
+        if (hero.y !== 1) {
+          hero.y -= 1;
+        }
+        break;
+      case 'D':
+        if (hero.y !== mapsize.height) {
+          hero.y += 1;
+        }
+        break;
+      case 'L':
+        if (hero.x !== 1) {
+          hero.x -= 1;
+        }
+        break;
+      case 'R':
+        if (hero.x !== mapsize.weight) {
+          hero.x += 1;
+        }
+        break;
+    }
+    if (mapOverview[hero.y][hero.x] === OBJECT_TYPE.WALL) {
+      hero.x = from.x;
+      hero.y = from.y;
+    }
+    switch (mapOverview[hero.y][hero.x]) {
+      case OBJECT_TYPE.TRAP:
+        inTrap();
+        break;
+      case OBJECT_TYPE.ITEMBOX:
+        openItembox(findItembox(hero.x, hero.y));
+        break;
+      case OBJECT_TYPE.MONSTER:
+        battle(findMonster(hero.x, hero.y));
+        break;
+    }
+    if (isOver) {
+      break;
+    }
+  }
+  for (let y = 1; y <= mapsize.height; ++y) {
+    for (let x = 1; x <= mapsize.weight; ++x) {
+      if (x === hero.x && y === hero.y) {
+        io.insert(MAP_SIMBOL.HERO);
+        continue;
+      }
+      switch (mapOverview[y][x]) {
+        case OBJECT_TYPE.EMPTY:
+          io.insert(MAP_SIMBOL.EMPTY);
+          break;
+        case OBJECT_TYPE.WALL:
+          io.insert(MAP_SIMBOL.WALL);
+          break;
+        case OBJECT_TYPE.ITEMBOX:
+          io.insert(MAP_SIMBOL.ITEMBOX);
+          break;
+        case OBJECT_TYPE.TRAP:
+          io.insert(MAP_SIMBOL.TRAP);
+          break;
+        case OBJECT_TYPE.MONSTER:
+          if (monsters[findMonster(x, y)].content.type === MONSTER_TYPE.BOSS) {
+            io.insert(MAP_SIMBOL.BOSS);
+          } else {
+            io.insert(MAP_SIMBOL.MONSTER);
+          }
+          break;
+      }
+    }
+    io.insert('\n');
+  }
+  io.insert(`Passed Turns : ${turn}\n`);
+  io.insert(`LV : ${hero.content.level}\n`);
+  io.insert(`HP : ${hero.content.hp}/${hero.content.maxHp}\n`);
+  io.insert(`ATT : ${hero.content.baseAtt}+${hero.content.weapon.att}\n`);
+  io.insert(`DEF : ${hero.content.baseDef}+${hero.content.armor.def}\n`);
+  io.insert(`EXP : ${hero.content.exp}/${hero.content.maxExp()}\n`);
+  io.insert(overMessage);
+  io.output();
+}
+
+initMap();
+interpret();
